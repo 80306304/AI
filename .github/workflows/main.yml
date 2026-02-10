@@ -1,0 +1,52 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 拉代码
+        uses: actions/checkout@v3
+
+      # ========= 前端构建 =========
+      - name: 安装Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: 构建Vue
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      # ========= 后端构建 =========
+      - name: 安装Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: 编译Go
+        run: |
+          cd backend
+          go build -o app
+
+      # ========= 部署 =========
+      - name: SSH部署服务器
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /www/project
+            git pull
+            cd backend
+            pkill app || true
+            nohup ./app > log.txt 2>&1 &
